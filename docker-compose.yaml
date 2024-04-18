@@ -1,0 +1,82 @@
+volumes:
+  prometheus1_data:
+    driver: local
+  prometheus2_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+services:
+  prometheus2:
+    image: docker.io/prom/prometheus:v2.51.2
+    container_name: prom_2
+    ports:
+      - 9091:9090
+    command: "--config.file=/etc/prometheus/prometheus.yaml"
+    volumes:
+      - ./prometheus2.yaml:/etc/prometheus/prometheus.yaml:ro
+      - prometheus2_data:/prometheus
+    restart: no
+    networks:
+      - prometheus
+
+  prometheus1:
+    image: docker.io/prom/prometheus:v2.51.2
+    container_name: prom_1
+    ports:
+      - 9090:9090
+    command: "--config.file=/etc/prometheus/prometheus.yaml"
+    volumes:
+      - ./prometheus1.yaml:/etc/prometheus/prometheus.yaml:ro
+      - prometheus1_data:/prometheus
+    restart: no
+    depends_on:
+      - prometheus2
+    networks:
+      - prometheus
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - 3000:3000
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+        - prometheus
+    depends_on:
+      - prometheus1
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    ports:
+      - 8080:8080
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    depends_on:
+      - grafana
+    networks:
+      - prometheus
+    devices:
+      - /dev/kmsg
+
+  node_exporter:
+    image: quay.io/prometheus/node-exporter:latest
+    container_name: node_expo
+    command:
+      - "--path.rootfs=/host"
+    network_mode: host
+    pid: host
+    depends_on:
+      - cadvisor
+    volumes:
+      - "/:/host:ro,rslave"
+
+networks:
+  prometheus:
+  host:
